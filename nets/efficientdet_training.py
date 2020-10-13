@@ -164,11 +164,20 @@ class FocalLoss(nn.Module):
                
                 regression_diff = torch.abs(targets - regression[positive_indices, :])  #
                 # smoooth_l1
+                # regression_loss = torch.where(
+                #     torch.le(regression_diff, 1.0 / 9.0),
+                #     0.5 * 9.0 * torch.pow(regression_diff, 2),
+                #     regression_diff - 0.5 / 9.0
+                # )
+                L1delta = 0.5
                 regression_loss = torch.where(
-                    torch.le(regression_diff, 1.0 / 9.0),
-                    0.5 * 9.0 * torch.pow(regression_diff, 2),
-                    regression_diff - 0.5 / 9.0
+                    torch.le(regression_diff, L1delta),
+                    0.5 * torch.pow(regression_diff, 2),
+                    L1delta * regression_diff - 0.5 * L1delta**2
                 )
+
+
+
 
                 regression_losses.append(regression_loss.mean())
 
@@ -184,13 +193,10 @@ class FocalLoss(nn.Module):
 
         c_loss = torch.stack(classification_losses).mean()
         r_loss = torch.stack(regression_losses).mean()
-        # Repulsion
-        # rep_target = torch.tensor(rep_target, dtype=torch.float16)
-        # rep_regres = torch.tensor(rep_regres, dtype=torch.float16)
-        loss_RepGT = repulsion(rep_target, rep_regres)  # anchor
+
+        loss_RepGT = repulsion(rep_target, rep_regres)  # RepGT
 
         repu_loss = loss_RepGT.mean()
-        print("\nrepuloss:", repu_loss)
 
         loss = c_loss + r_loss + repu_loss
         return loss, c_loss, r_loss, repu_loss
