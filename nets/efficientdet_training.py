@@ -164,13 +164,14 @@ class FocalLoss(nn.Module):
                
                 regression_diff = torch.abs(targets - regression[positive_indices, :])  #
                 # smoooth_l1
+                L1delta = 0.5
                 regression_loss = torch.where(
-                    torch.le(regression_diff, 1.0 / 9.0),
-                    0.5 * 9.0 * torch.pow(regression_diff, 2),
-                    regression_diff - 0.5 / 9.0
+                    torch.le(regression_diff, L1delta),
+                    0.5 * torch.pow(regression_diff, 2),
+                    L1delta * regression_diff - 0.5 * L1delta ** 2
                 )
 
-                regression_losses.append(regression_loss.mean())
+            regression_losses.append(regression_loss.mean())
 
 
             else:
