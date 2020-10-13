@@ -171,7 +171,7 @@ class FocalLoss(nn.Module):
                     L1delta * regression_diff - 0.5 * L1delta ** 2
                 )
 
-                 regression_losses.append(regression_loss.mean())
+                regression_losses.append(regression_loss.mean())
 
 
             else:
