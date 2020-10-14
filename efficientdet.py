@@ -13,6 +13,9 @@ from torch.autograd import Variable
 from nets.efficientdet import EfficientDetBackbone
 from utils.utils import non_max_suppression, bbox_iou, decodebox, letterbox_image, efficientdet_correct_boxes
 
+Det = 0   # Efficient Det version
+
+
 
 image_sizes = [512, 640, 768, 896, 1024, 1280, 1408, 1536]
 
@@ -29,7 +32,8 @@ def precision(box, pred_num):
     Output num_precision and boxes_precision
     IoU > confidence
     """
-    print('Precision : {:.2f}%'.format(pred_num/len(box)*100))
+    prec = min([pred_num/box*100, box/pred_num*100])
+    print('Precision : {:.2f}%'.format(prec))
 
 
 
@@ -43,8 +47,9 @@ def precision(box, pred_num):
 class EfficientDet(object):
     _defaults = {
         # "model_path": 'model_data/efficientdet-d0.pth',
+        'target_path':'2007_train.txt',
         "classes_path": 'model_data/voc_classes.txt',
-        "phi": 0,
+        "phi": Det,
         "confidence": 0.2,
         "cuda": True
     }
@@ -64,6 +69,8 @@ class EfficientDet(object):
         self.model_path = model_path
         self.class_names = self._get_class()
         self.generate()
+
+
     #---------------------------------------------------#
     #   获得所有的分类
     #---------------------------------------------------#
@@ -102,7 +109,8 @@ class EfficientDet(object):
     #---------------------------------------------------#
     #   检测图片
     #---------------------------------------------------#
-    def detect_image(self, image):
+    def detect_image(self, image, target):
+
         image_shape = np.array(np.shape(image)[0:2])
 
         crop_img = np.array(letterbox_image(image, (image_sizes[self.phi],image_sizes[self.phi])))
@@ -145,7 +153,6 @@ class EfficientDet(object):
 
         total_predict = 0
         for i, c in enumerate(top_label):
-
             predicted_class = self.class_names[c]
             score = top_conf[i]     #confidence
             if score > self.confidence:
@@ -183,6 +190,6 @@ class EfficientDet(object):
                 fill=self.colors[self.class_names.index(predicted_class)])
             draw.text(text_origin, str(label,'UTF-8'), fill=(0, 0, 0), font=font)
             del draw
-        precision(boxes, total_predict)
+        precision(target, total_predict)
         return image
 

@@ -21,13 +21,13 @@ from tqdm import tqdm
 from functools import wraps
 from datetime import datetime
 
-train_type = 0   #  1 for train
+train_type = 0   #  1 for train,0 for predict
+Det = 0
 
 
-
-init_model_path = './logs/Epoch50-Total_Loss0.6522-Val_Loss0.6001.pth'
+init_model_path = './logs/Epoch50-Total_Loss0.4249-Val_Loss0.3888.pth'
 if not init_model_path:
-    init_model_path = "./weights/efficientdet-d0.pth"
+    init_model_path = "./weights/efficientdet-d{}.pth".format(Det)
 
 loss = 'F'
 
@@ -136,7 +136,7 @@ def fit_one_epoch(model, optimizer, net, criteria_loss, epoch, epoch_size, epoch
                     targets_val = [Variable(torch.from_numpy(ann).type(torch.FloatTensor)) for ann in targets_val]
                 optimizer.zero_grad()
                 _, regression, classification, anchors = net(images_val)
-                loss, c_loss, r_loss = criteria_loss(classification, regression, anchors, targets_val, cuda=cuda)
+                loss, c_loss, r_loss, repu_loss = criteria_loss(classification, regression, anchors, targets_val, cuda=cuda)
                 val_loss += loss.item()
 
             pbar.set_postfix(**{'total_loss': val_loss / (iteration + 1)})
@@ -157,14 +157,14 @@ def fit_one_epoch(model, optimizer, net, criteria_loss, epoch, epoch_size, epoch
 # ----------------------------------------------------#
 
 
-@time_log  # modified  #注释掉才可以运行成功
+@time_log  # modified
 def train():
     # -------------------------------------------#
     #   训练前，请指定好phi和model_path
     #   二者所使用Efficientdet版本要相同
     # -------------------------------------------#
     lr = 1e-3
-    phi = 0
+    phi = Det
     Cuda = True
     annotation_path = '2007_train.txt'
     classes_path = 'model_data/voc_classes.txt'
@@ -206,7 +206,7 @@ def train():
     efficient_loss = criteria()         # TODO loss: repulsive loss
 
     # 0.1用于验证，0.9用于训练
-    val_split = 0.1
+    val_split = 0.1  #.1
     with open(annotation_path) as f:
         lines = f.readlines()
     np.random.seed(10101)
@@ -266,7 +266,7 @@ def train():
         #   BATCH_SIZE不要太小，不然训练效果很差
         # --------------------------------------------#
         lr = lr/10
-        Batch_size = 2  #
+        Batch_size = 4  #
         Freeze_Epoch = 25
         Unfreeze_Epoch = 50
 
@@ -304,19 +304,29 @@ def predict(model_path):
     from efficientdet import EfficientDet
     from PIL import Image
     efficientdet = EfficientDet(model_path)
-    # img = "./VOCdevkit/VOC2007/JPEGImages/notag/bike{}.JPG"  # input('Input image filename:')   #随便
-    img = "./VOCdevkit/VOC2007/JPEGImages/tagbike{}.JPG"
+    img = "./VOCdevkit/VOC2007/TestImages/bike{}.JPG"  #测试集图片
+    #img = "./VOCdevkit/VOC2007/JPEGImages/tagbike{}.JPG"       #训练集图片
+    targets = open('2007_train.txt', 'r').readlines()
+
     while True:
         I = input("Input a number:\n")
+        img_file = img.format(I)
+        target = [i for i in targets if 'tagbike{}.jpg'.format(I) in i]
+        print(target)
+        target = target[0].split(' ')
+        print(target)
+        target = len(target)-1
+        print(target)
         try:
-            image = Image.open(img.format(I))
+            image = Image.open(img_file)
+
         except:
             if I == 'q':
                 break
             print('Open Error! Try again!')
 
         else:
-            r_image = efficientdet.detect_image(image)
+            r_image = efficientdet.detect_image(image, target)
             r_image.show()
 
 

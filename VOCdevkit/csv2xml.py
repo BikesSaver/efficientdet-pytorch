@@ -24,8 +24,8 @@ def csvtoxml(csvname, JPG):
         key = 0
 
         for row in reader:
-            if row[0].startswith(JPG):  #judge the filename
-                print(row)
+            if row[0].startswith(JPG+'.JPG'):      #judge the filename, this fail
+                print(row[0].startswith(JPG))
                 if key == 0:
                     key = 1
                     bike_count = Element('bike_count')
@@ -42,7 +42,7 @@ def csvtoxml(csvname, JPG):
                 object.append(name)
                 bndbox = Element('bndbox')
                 tar = target.split(":")
-                print(tar)
+
                 x, y = int(tar[2].split(",")[0]), int(tar[3].split(",")[0])
                 xmax, ymax = int(tar[4].split(",")[0]), int(tar[5][:-1])
                 for ele, value in zip(xy, [x, y, x+xmax, y+ymax]):

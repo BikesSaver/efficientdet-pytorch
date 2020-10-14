@@ -2,7 +2,7 @@ import math
 import torch
 from torch.autograd import Variable
 from .bbox_transform import bbox_transform_inv, bbox_overlaps
-from numba import jit
+
 
 # https://github.com/dongdonghy/repulsion-loss-faster-rcnn-pytorch/blob/master/lib/model/faster_rcnn/repulsion_loss.py
 

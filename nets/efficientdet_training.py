@@ -191,7 +191,6 @@ class FocalLoss(nn.Module):
         loss_RepGT = repulsion(rep_target, rep_regres)  # anchor
 
         repu_loss = loss_RepGT.mean()
-        print("\nrepuloss:", repu_loss)
 
         loss = c_loss + r_loss + repu_loss
         return loss, c_loss, r_loss, repu_loss

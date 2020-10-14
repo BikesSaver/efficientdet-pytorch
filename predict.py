@@ -4,7 +4,7 @@
 from efficientdet import EfficientDet
 from PIL import Image
 
-efficientdet = EfficientDet()
+efficientdet = EfficientDet('./logs/Epoch29-Total_Loss0.7971-Val_Loss0.7432.pth')
 
 while True:
     img = input('Input image filename:')
