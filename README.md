@@ -24,6 +24,7 @@ Link: https://pan.baidu.com/s/1Kvv526YYSDJEf9BzWfIb3Q Key: f9g3
 ### Reference
 https://github.com/zylo117/Yet-Another-EfficientDet-Pytorch   
 https://github.com/Cartucho/mAP
+https://arxiv.org/pdf/1809.06839v1.pdf
 
 ### Update
 更新了get_gt_txt.py、get_dr_txt.py和get_map.py文件。  
