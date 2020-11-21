@@ -147,13 +147,17 @@ if __name__ == "__main__":
     seq = iaa.Sequential([
         iaa.Flipud(0.5),  # vertically flip 20% of all images
         iaa.Fliplr(0.5),  # 镜像
-        iaa.Multiply((1.2, 1.5)),  # change brightness, doesn't affect BBs
-        iaa.GaussianBlur(sigma=(0, 3.0)),  # iaa.GaussianBlur(0.5),
-        iaa.Affine(
-            translate_px={"x": 15, "y": 15},
-            scale=(0.8, 0.95),
-            rotate=(-30, 30)
-        )  # translate by 40/60px on x/y axis, and scale to 50-70%, affects BBs
+        iaa.Multiply((1.0, 1.1)),  # change brightness, doesn't affect BBs
+        # iaa.GaussianBlur(sigma=(0, 0.1)),  # iaa.GaussianBlur(0.5),
+        # iaa.Crop(percent=(0.0, 0.1)),
+        iaa.Resize({"height": 900, "width": 1600}, interpolation='nearest'),
+        # iaa.Affine(
+        #     translate_px={"x": 15, "y": 15},
+        #     scale=(0.5, 0.5),
+        #     # rotate=(-30, 30)
+        # )
+        # iaa.Sharpen(alpha=0.5),
+        # iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)
     ])
 
     for root, sub_folders, files in os.walk(XML_DIR):
