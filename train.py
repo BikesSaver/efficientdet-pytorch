@@ -14,32 +14,36 @@ from torch.utils.data import DataLoader
 from utils.dataloader import efficientdet_dataset_collate, EfficientdetDataset
 from nets.efficientdet import EfficientDetBackbone
 from nets.efficientdet_training import Generator, FocalLoss
-from nets.multibox_loss import MultiBoxLoss
-from nets.repulsion_loss import RepulsionLoss
 from tqdm import tqdm
+from PIL import Image
 
 from functools import wraps
 from datetime import datetime
 
-train_type = 0   #  1 for train,0 for predict
-Det = 0
+train_type = 1  # 1 for train,0 for predict
+Det = 1
+Batch_size = 4
 
+with open('latest_model_path.txt', 'r') as f:
+    latest_model_path = f.read()  # latest trained model path
 
-init_model_path = './logs/Epoch50-Total_Loss0.4249-Val_Loss0.3888.pth'
+init_model_path = None  # './logs/Epoch50-Total_Loss0.4265-Val_Loss1.4036.pth'
 if not init_model_path:
     init_model_path = "./weights/efficientdet-d{}.pth".format(Det)
+    # print('将使用d{}作为初始权重训练'.format(Det))
 
+torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.deterministic = True  # 确定性？
 loss = 'F'
 
 loss_type = {
-    'F' : FocalLoss,
-    'M': MultiBoxLoss,       #num_classes
-    'R': RepulsionLoss
+    'F': FocalLoss,
 }
 
 # test_loss = RepulsionLoss()
 
 criteria = loss_type[loss]
+
 
 def _curent_time():
     date = datetime.now()
@@ -82,6 +86,7 @@ def fit_one_epoch(model, optimizer, net, criteria_loss, epoch, epoch_size, epoch
     total_loss = 0
     val_loss = 0
     start_time = time.time()
+    torch.cuda.empty_cache()  # clean memory TODO
     with tqdm(total=epoch_size, desc=f'Epoch {epoch + 1}/{Epoch}', postfix=dict, mininterval=0.3) as pbar:
         for iteration, batch in enumerate(gen):
             if iteration >= epoch_size:
@@ -109,7 +114,7 @@ def fit_one_epoch(model, optimizer, net, criteria_loss, epoch, epoch_size, epoch
             total_repu_loss += repu_loss.item()
             waste_time = time.time() - start_time
 
-            pbar.set_postfix(**{'Total Loss' : total_loss / (iteration + 1),
+            pbar.set_postfix(**{'Total Loss': total_loss / (iteration + 1),
                                 'Conf Loss': total_c_loss / (iteration + 1),
                                 'Regression Loss': total_r_loss / (iteration + 1),
                                 'Repulsion Loss': total_repu_loss / (iteration + 1),
@@ -136,7 +141,8 @@ def fit_one_epoch(model, optimizer, net, criteria_loss, epoch, epoch_size, epoch
                     targets_val = [Variable(torch.from_numpy(ann).type(torch.FloatTensor)) for ann in targets_val]
                 optimizer.zero_grad()
                 _, regression, classification, anchors = net(images_val)
-                loss, c_loss, r_loss, repu_loss = criteria_loss(classification, regression, anchors, targets_val, cuda=cuda)
+                loss, c_loss, r_loss, repu_loss = criteria_loss(classification, regression, anchors, targets_val,
+                                                                cuda=cuda)
                 val_loss += loss.item()
 
             pbar.set_postfix(**{'total_loss': val_loss / (iteration + 1)})
@@ -144,10 +150,15 @@ def fit_one_epoch(model, optimizer, net, criteria_loss, epoch, epoch_size, epoch
     print('Finish Validation')
     print('\nEpoch:' + str(epoch + 1) + '/' + str(Epoch))
     print('Total Loss: %.4f || Val Loss: %.4f ' % (total_loss / (epoch_size + 1), val_loss / (epoch_size_val + 1)))
-
     print('Saving state, iter:', str(epoch + 1))
-    torch.save(model.state_dict(), 'logs/Epoch%d-Total_Loss%.4f-Val_Loss%.4f.pth' % (
-    (epoch + 1), total_loss / (epoch_size + 1), val_loss / (epoch_size_val + 1)))
+    if (epoch + 1) % 10 == 0:
+        torch.save(model.state_dict(), 'logs/Epoch%d-Total_Loss%.4f-Val_Loss%.4f-Det%d.pth' % (
+            (epoch + 1), total_loss / (epoch_size + 1), val_loss / (epoch_size_val + 1), Det))
+        # latest_model_path: latest trained model path
+        latest_model_path = 'logs/Epoch%d-Total_Loss%.4f-Val_Loss%.4f-Det%d.pth' % (
+            (epoch + 1), total_loss / (epoch_size + 1), val_loss / (epoch_size_val + 1), Det)
+        with open('latest_model_path.txt', 'w+') as f:
+            f.write(latest_model_path)
     return val_loss / (epoch_size_val + 1)
 
 
@@ -165,8 +176,9 @@ def train():
     # -------------------------------------------#
     lr = 1e-3
     phi = Det
+    print("Det:", phi)
     Cuda = True
-    annotation_path = '2007_train.txt'
+    annotation_path = 'weights/2007_train.txt'
     classes_path = 'model_data/voc_classes.txt'
     # -------------------------------#
     #   Dataloder的使用
@@ -175,9 +187,13 @@ def train():
 
     class_names = get_classes(classes_path)
     num_classes = len(class_names)
+    # I have read a paper about data set augmentation, we can try on it and boast our data
+    # that offer about 30 ways to modify the pictures
+    # <Albumentations : fast and flexible image augmentations>
+    # https://github.com/albumentations-team/albumentations
 
     input_sizes = [512, 640, 768, 896, 1024, 1280, 1408, 1536]
-    input_shape = (input_sizes[phi], input_sizes[phi])  # TODO Input picture size need adjust
+    input_shape = (input_sizes[phi], input_sizes[phi])  # TODO, Input picture size need adjust
     # 4000*2250  ->  512*512
     # 500 * 2250/8
     # 创建模型
@@ -203,10 +219,10 @@ def train():
         cudnn.benchmark = True
         net = net.cuda()
 
-    efficient_loss = criteria()         # TODO loss: repulsive loss
+    efficient_loss = criteria()  # TODO loss: repulsive loss
 
     # 0.1用于验证，0.9用于训练
-    val_split = 0.1  #.1
+    val_split = 0.05  # .1
     with open(annotation_path) as f:
         lines = f.readlines()
     np.random.seed(10101)
@@ -227,7 +243,6 @@ def train():
         #   BATCH_SIZE不要太小，不然训练效果很差
         # --------------------------------------------#
 
-        Batch_size = 4
         Init_Epoch = 0
         Freeze_Epoch = 25
 
@@ -265,8 +280,7 @@ def train():
         # --------------------------------------------#
         #   BATCH_SIZE不要太小，不然训练效果很差
         # --------------------------------------------#
-        lr = lr/10
-        Batch_size = 4  #
+        lr = lr / 10
         Freeze_Epoch = 25
         Unfreeze_Epoch = 50
 
@@ -300,13 +314,13 @@ def train():
             lr_scheduler.step(val_loss)
 
 
-def predict(model_path):
+def predict(model_path, Det=0):
     from efficientdet import EfficientDet
     from PIL import Image
-    efficientdet = EfficientDet(model_path)
-    img = "./VOCdevkit/VOC2007/TestImages/bike{}.JPG"  #测试集图片
-    #img = "./VOCdevkit/VOC2007/JPEGImages/tagbike{}.JPG"       #训练集图片
-    targets = open('2007_train.txt', 'r').readlines()
+    efficientdet = EfficientDet(model_path, Det)
+    # img = "./VOCdevkit/VOC2007/TestImages/bike{}.JPG"  #测试集图片
+    img = "./VOCdevkit/VOC2007/JPEGImages/tagbike{}.JPG"  # 训练集图片
+    targets = open('weights/2007_train.txt', 'r').readlines()
 
     while True:
         I = input("Input a number:\n")
@@ -315,7 +329,7 @@ def predict(model_path):
         print(target)
         target = target[0].split(' ')
         print(target)
-        target = len(target)-1
+        target = len(target) - 1
         print(target)
         try:
             image = Image.open(img_file)
@@ -328,12 +342,14 @@ def predict(model_path):
         else:
             r_image = efficientdet.detect_image(image, target)
             r_image.show()
+            # r_image.save('F:\project\efficientdet-pytorch - Bike\\results\\result_bike{}'.format(I) + '.jpg')
 
 
 if __name__ == '__main__':
-    # model_path = './logs/Epoch50-Total_Loss0.6522-Val_Loss0.6001.pth'  # hardcore, assign to Durbin
+    # model_path = './logs/Epoch50-Total_Loss0.4145-Val_Loss0.3956.pth'  # hardcore, assign to Durbin,has finished
+    model_path = latest_model_path
     if train_type:
         train()
     else:
-        #reducing learning rate of group 0 to 6.2500e-06.
-        predict(init_model_path)
+        # reducing learning rate of group 0 to 6.2500e-06.
+        predict(model_path)
