@@ -33,7 +33,7 @@ if not init_model_path:
     # print('将使用d{}作为初始权重训练'.format(Det))
 
 torch.backends.cudnn.benchmark = True
-torch.backends.cudnn.deterministic = True  # 确定性？
+# torch.backends.cudnn.deterministic = True  # 确定性？
 loss = 'F'
 
 loss_type = {
@@ -86,7 +86,7 @@ def fit_one_epoch(model, optimizer, net, criteria_loss, epoch, epoch_size, epoch
     total_loss = 0
     val_loss = 0
     start_time = time.time()
-    torch.cuda.empty_cache()  # clean memory TODO
+    torch.cuda.empty_cache()  # clean memory
     with tqdm(total=epoch_size, desc=f'Epoch {epoch + 1}/{Epoch}', postfix=dict, mininterval=0.3) as pbar:
         for iteration, batch in enumerate(gen):
             if iteration >= epoch_size:
