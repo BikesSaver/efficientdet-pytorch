@@ -1,8 +1,8 @@
 import os
 import random 
  
-xmlfilepath=r'./Annotations'
-saveBasePath=r"./ImageSets/Main/"
+xmlfilepath = r'F:\project\efficientdet-pytorch-Bike\VOCdevkit\My_Dataset\Annotations' #r'./Annotations'
+saveBasePath = r"./ImageSets/Main/"
  
 trainval_percent=1
 train_percent=1

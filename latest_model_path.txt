@@ -1,0 +1,1 @@
+logs/Epoch100-Total_Loss0.8844-Val_Loss1.0773-Det2.pth

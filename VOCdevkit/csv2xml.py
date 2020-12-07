@@ -13,7 +13,7 @@ def csvtoxml(csvname, JPG):
     with open(csvname, 'r') as f:
         reader = csv.reader(f)
         header = next(reader)
-        header = ['name', 'region_id','bndbox']
+        header = ['name', 'region_id', 'bndbox']
         root = Element('Annotation')
         filename = Element('filename')   #path
         filename.text = JPG + '.jpg'
@@ -67,8 +67,8 @@ def beatau(e, level=0):
     e.tail = '\n' + '\t' * level
 
 if __name__ == '__main__':
-    JPG = ['tagbike{}'.format(i) for i in range(0,384)]     #TODO
+    JPG = ['tagbike{}'.format(i) for i in range(0, 400)]     #TODO
 
     for jpg in JPG:
         et = csvtoxml(csvfile, jpg)
-        et.write(xmlfile+jpg+'.xml')
+        et.write(xmlfile + jpg+'.xml')

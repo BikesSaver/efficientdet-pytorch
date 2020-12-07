@@ -20,30 +20,35 @@ from PIL import Image
 from functools import wraps
 from datetime import datetime
 
-train_type = 1  # 1 for train,0 for predict
-Det = 1
-Batch_size = 4
 
-with open('latest_model_path.txt', 'r') as f:
-    latest_model_path = f.read()  # latest trained model path
+train_type = 0  #  1 for train,0 for predict
+Det = 2
+Batch_size = 1
+# tagfile = '2007_train_bike.txt'
+tagfile = '2007_train.txt'
+classes_path = 'model_data/voc_classes.txt'         # all tags
+# classes_path = 'model_data/coco_classes.txt'  # Bike and Seat
 
-init_model_path = None  # './logs/Epoch50-Total_Loss0.4265-Val_Loss1.4036.pth'
+with open('latest_model_path.txt','r') as f:
+    latest_model_path = f.read()   #latest trained model path
+
+init_model_path = None# 'logs/Epoch50-Total_Loss0.3600-Val_Loss0.3254-Det0.pth' #'logs/Epoch50-Total_Loss0.8854-Val_Loss1.4888-Det2.pth'
 if not init_model_path:
-    init_model_path = "./weights/efficientdet-d{}.pth".format(Det)
-    # print('将使用d{}作为初始权重训练'.format(Det))
+    init_model_path = latest_model_path#"./weights/efficientdet-d{}.pth".format(Det)
+    #print('将使用d{}作为初始权重训练'.format(Det))
 
-torch.backends.cudnn.benchmark = True
-# torch.backends.cudnn.deterministic = True  # 确定性？
+# torch.backends.cudnn.benchmark = True
+# torch.backends.cudnn.deterministic = True      #确定性？  开了训练很慢
+torch.cuda.empty_cache()
 loss = 'F'
 
 loss_type = {
-    'F': FocalLoss,
+    'F' : FocalLoss,
 }
 
 # test_loss = RepulsionLoss()
 
 criteria = loss_type[loss]
-
 
 def _curent_time():
     date = datetime.now()
@@ -70,6 +75,7 @@ def get_lr(optimizer):
 # ---------------------------------------------------#
 #   获得类和先验框
 # ---------------------------------------------------#
+
 def get_classes(classes_path):
     '''loads the classes'''
     with open(classes_path) as f:
@@ -86,7 +92,7 @@ def fit_one_epoch(model, optimizer, net, criteria_loss, epoch, epoch_size, epoch
     total_loss = 0
     val_loss = 0
     start_time = time.time()
-    torch.cuda.empty_cache()  # clean memory
+    torch.cuda.empty_cache()   # clean memory
     with tqdm(total=epoch_size, desc=f'Epoch {epoch + 1}/{Epoch}', postfix=dict, mininterval=0.3) as pbar:
         for iteration, batch in enumerate(gen):
             if iteration >= epoch_size:
@@ -114,7 +120,7 @@ def fit_one_epoch(model, optimizer, net, criteria_loss, epoch, epoch_size, epoch
             total_repu_loss += repu_loss.item()
             waste_time = time.time() - start_time
 
-            pbar.set_postfix(**{'Total Loss': total_loss / (iteration + 1),
+            pbar.set_postfix(**{'Total Loss' : total_loss / (iteration + 1),
                                 'Conf Loss': total_c_loss / (iteration + 1),
                                 'Regression Loss': total_r_loss / (iteration + 1),
                                 'Repulsion Loss': total_repu_loss / (iteration + 1),
@@ -123,7 +129,7 @@ def fit_one_epoch(model, optimizer, net, criteria_loss, epoch, epoch_size, epoch
             pbar.update(1)
 
             start_time = time.time()
-
+    # net.eval()
     print('Start Validation')
     with tqdm(total=epoch_size_val, desc=f'Epoch {epoch + 1}/{Epoch}', postfix=dict, mininterval=0.3) as pbar:
         for iteration, batch in enumerate(genval):
@@ -141,23 +147,23 @@ def fit_one_epoch(model, optimizer, net, criteria_loss, epoch, epoch_size, epoch
                     targets_val = [Variable(torch.from_numpy(ann).type(torch.FloatTensor)) for ann in targets_val]
                 optimizer.zero_grad()
                 _, regression, classification, anchors = net(images_val)
-                loss, c_loss, r_loss, repu_loss = criteria_loss(classification, regression, anchors, targets_val,
-                                                                cuda=cuda)
+                loss, c_loss, r_loss, repu_loss = criteria_loss(classification, regression, anchors, targets_val, cuda=cuda)
                 val_loss += loss.item()
 
             pbar.set_postfix(**{'total_loss': val_loss / (iteration + 1)})
             pbar.update(1)
+    # net.train()
     print('Finish Validation')
     print('\nEpoch:' + str(epoch + 1) + '/' + str(Epoch))
     print('Total Loss: %.4f || Val Loss: %.4f ' % (total_loss / (epoch_size + 1), val_loss / (epoch_size_val + 1)))
     print('Saving state, iter:', str(epoch + 1))
-    if (epoch + 1) % 10 == 0:
+    if (epoch+1)%10 == 0:
         torch.save(model.state_dict(), 'logs/Epoch%d-Total_Loss%.4f-Val_Loss%.4f-Det%d.pth' % (
-            (epoch + 1), total_loss / (epoch_size + 1), val_loss / (epoch_size_val + 1), Det))
+            (epoch + 1), total_loss / (epoch_size + 1), val_loss / (epoch_size_val + 1),Det))
         # latest_model_path: latest trained model path
         latest_model_path = 'logs/Epoch%d-Total_Loss%.4f-Val_Loss%.4f-Det%d.pth' % (
-            (epoch + 1), total_loss / (epoch_size + 1), val_loss / (epoch_size_val + 1), Det)
-        with open('latest_model_path.txt', 'w+') as f:
+            (epoch + 1), total_loss / (epoch_size + 1), val_loss / (epoch_size_val + 1),Det)
+        with open('latest_model_path.txt','w+') as f:
             f.write(latest_model_path)
     return val_loss / (epoch_size_val + 1)
 
@@ -174,24 +180,28 @@ def train():
     #   训练前，请指定好phi和model_path
     #   二者所使用Efficientdet版本要相同
     # -------------------------------------------#
-    lr = 1e-3
+
     phi = Det
     print("Det:", phi)
     Cuda = True
-    annotation_path = 'weights/2007_train.txt'
-    classes_path = 'model_data/voc_classes.txt'
+    annotation_path = tagfile
+
+
     # -------------------------------#
     #   Dataloder的使用
     # -------------------------------#
     Use_Data_Loader = True
-
+    lr = 2e-3
+    Init_Epoch = 0
+    Freeze_Epoch = 50
     class_names = get_classes(classes_path)
+    print
     num_classes = len(class_names)
     # I have read a paper about data set augmentation, we can try on it and boast our data
     # that offer about 30 ways to modify the pictures
     # <Albumentations : fast and flexible image augmentations>
     # https://github.com/albumentations-team/albumentations
-
+    
     input_sizes = [512, 640, 768, 896, 1024, 1280, 1408, 1536]
     input_shape = (input_sizes[phi], input_sizes[phi])  # TODO, Input picture size need adjust
     # 4000*2250  ->  512*512
@@ -219,13 +229,13 @@ def train():
         cudnn.benchmark = True
         net = net.cuda()
 
-    efficient_loss = criteria()  # TODO loss: repulsive loss
+    efficient_loss = criteria()         # TODO loss: repulsive loss
 
     # 0.1用于验证，0.9用于训练
-    val_split = 0.05  # .1
+    val_split = 0.02  #.1
     with open(annotation_path) as f:
         lines = f.readlines()
-    np.random.seed(10101)
+    np.random.seed(1010)
     np.random.shuffle(lines)
     num_val = int(len(lines) * val_split)
     num_train = len(lines) - num_val
@@ -243,19 +253,17 @@ def train():
         #   BATCH_SIZE不要太小，不然训练效果很差
         # --------------------------------------------#
 
-        Init_Epoch = 0
-        Freeze_Epoch = 25
-
-        optimizer = optim.Adam(net.parameters(), lr, weight_decay=5e-4)  # adam  SGD
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, verbose=True)
+        optimizer = optim.Adam(net.parameters(), lr, weight_decay=1e-4)  # adam  SGD  5e-4
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=3, verbose=True,
+                                                            threshold=1e-4, threshold_mode='rel', cooldown=0, min_lr=1e-7)
 
         if Use_Data_Loader:
             train_dataset = EfficientdetDataset(lines[:num_train], (input_shape[0], input_shape[1]))
             val_dataset = EfficientdetDataset(lines[num_train:], (input_shape[0], input_shape[1]))
             gen = DataLoader(train_dataset, batch_size=Batch_size, num_workers=4, pin_memory=True,
-                             drop_last=True, collate_fn=efficientdet_dataset_collate)
+                             drop_last=True, shuffle=True, collate_fn=efficientdet_dataset_collate)
             gen_val = DataLoader(val_dataset, batch_size=Batch_size, num_workers=4, pin_memory=True,
-                                 drop_last=True, collate_fn=efficientdet_dataset_collate)
+                                 drop_last=True, shuffle=True, collate_fn=efficientdet_dataset_collate)
         else:
             gen = Generator(Batch_size, lines[:num_train],
                             (input_shape[0], input_shape[1])).generate()
@@ -280,20 +288,22 @@ def train():
         # --------------------------------------------#
         #   BATCH_SIZE不要太小，不然训练效果很差
         # --------------------------------------------#
-        lr = lr / 10
-        Freeze_Epoch = 25
-        Unfreeze_Epoch = 50
+        lr = lr/10
 
-        optimizer = optim.Adam(net.parameters(), lr, weight_decay=5e-4)
-        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, verbose=True)
+        Unfreeze_Epoch = Freeze_Epoch * 2
+
+        torch.cuda.empty_cache() #clean memory
+
+        optimizer = optim.Adam(net.parameters(), lr, weight_decay=1e-4)
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=3, verbose=True, min_lr=1e-7)
 
         if Use_Data_Loader:
             train_dataset = EfficientdetDataset(lines[:num_train], (input_shape[0], input_shape[1]))
             val_dataset = EfficientdetDataset(lines[num_train:], (input_shape[0], input_shape[1]))
             gen = DataLoader(train_dataset, batch_size=Batch_size, num_workers=4, pin_memory=True,
-                             drop_last=True, collate_fn=efficientdet_dataset_collate)
+                             drop_last=True, shuffle=True,  collate_fn=efficientdet_dataset_collate)
             gen_val = DataLoader(val_dataset, batch_size=Batch_size, num_workers=4, pin_memory=True,
-                                 drop_last=True, collate_fn=efficientdet_dataset_collate)
+                                 drop_last=True, shuffle=True, collate_fn=efficientdet_dataset_collate)
         else:
             gen = Generator(Batch_size, lines[:num_train],
                             (input_shape[0], input_shape[1])).generate()
@@ -314,23 +324,22 @@ def train():
             lr_scheduler.step(val_loss)
 
 
+
 def predict(model_path, Det=0):
     from efficientdet import EfficientDet
     from PIL import Image
-    efficientdet = EfficientDet(model_path, Det)
-    # img = "./VOCdevkit/VOC2007/TestImages/bike{}.JPG"  #测试集图片
-    img = "./VOCdevkit/VOC2007/JPEGImages/tagbike{}.JPG"  # 训练集图片
-    targets = open('weights/2007_train.txt', 'r').readlines()
+    efficientdet = EfficientDet(model_path, Det, tagfile, classes_path)
+
+    #img = "./VOCdevkit/VOC2007/TestImages/bike{}.JPG"  #测试集图片
+    img = "./VOCdevkit/VOC2007/JPEGImages/tagbike{}.JPG"       #训练集图片
+    targets = open(tagfile, 'r').readlines()
 
     while True:
         I = input("Input a number:\n")
         img_file = img.format(I)
         target = [i for i in targets if 'tagbike{}.jpg'.format(I) in i]
-        print(target)
         target = target[0].split(' ')
-        print(target)
-        target = len(target) - 1
-        print(target)
+        target = len(target)-1
         try:
             image = Image.open(img_file)
 
@@ -342,7 +351,7 @@ def predict(model_path, Det=0):
         else:
             r_image = efficientdet.detect_image(image, target)
             r_image.show()
-            # r_image.save('F:\project\efficientdet-pytorch - Bike\\results\\result_bike{}'.format(I) + '.jpg')
+            #r_image.save('F:\project\efficientdet-pytorch - Bike\\results\\result_bike{}'.format(I) + '.jpg')
 
 
 if __name__ == '__main__':
@@ -351,5 +360,5 @@ if __name__ == '__main__':
     if train_type:
         train()
     else:
-        # reducing learning rate of group 0 to 6.2500e-06.
-        predict(model_path)
+        #reducing learning rate of group 0 to 6.2500e-06.
+        predict(model_path, Det)

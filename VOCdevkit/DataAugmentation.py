@@ -30,8 +30,11 @@ def read_xml_annotation(root, image_id):
         # print(xmin,ymin,xmax,ymax)
         bndboxlist.append([xmin, ymin, xmax, ymax])
         # print(bndboxlist)
+    try:
+        bndbox = root.find('object').find('bndbox')
+    except:
+        return None
 
-    bndbox = root.find('object').find('bndbox')
     return bndboxlist
 
 
@@ -114,14 +117,37 @@ def mkdir(path):
         print(path + ' 目录已存在')
         return False
 
+def Need_Augment(path):
+    num_yel = 0 #yellow的个数
+
+    # 获取 XML 文档对象 ElementTree
+    tree = ET.parse(path)
+    # 获取 XML 文档对象的根结点 Element
+    root = tree.getroot()
+
+    # 递归查找所有的 neighbor 子结点
+    # 遍历xml文档的第二层
+    for child in root:
+        for children in child:
+            # 第三层节点的标签名称和属性
+            if(children.tag == "name"):
+                # 判断是否为Yellow，是则加1
+                if(children.text == "Yellow"):
+                    num_yel = num_yel + 1
+
+    if num_yel >= 2:
+        return False
+    else:
+        return True
+
 
 if __name__ == "__main__":
 
-    IMG_DIR = "F:/Python深度学习/python_Project/NeuralNetwork/ssd-pytorch-master/VOCdevkit/VOC2007/JPEGImages"
-    XML_DIR = "F:/Python深度学习/python_Project/NeuralNetwork/ssd-pytorch-master/VOCdevkit/VOC2007/Annotations"
+    IMG_DIR = "./VOC2007/JPEGImages"
+    XML_DIR = "./VOC2007/Annotations"
 
-    AUG_XML_DIR = "F:/Python深度学习/python_Project/NeuralNetwork/ssd-pytorch-master/VOCdevkit/My_Dataset/Annotations"  # 存储增强后的XML文件夹路径
-
+    AUG_XML_DIR = "./My_Dataset/Annotations"  # 存储增强后的XML文件夹路径 #todo
+    AUG_IMG_DIR = "./My_Dataset/JPEGImages"  # 存储增强后的影像文件夹路径  #todo
 
 
     try:
@@ -130,14 +156,14 @@ if __name__ == "__main__":
         a = 1
     mkdir(AUG_XML_DIR)
 
-    AUG_IMG_DIR = "F:/Python深度学习/python_Project/NeuralNetwork/ssd-pytorch-master/VOCdevkit/My_Dataset/JPEGImages"  # 存储增强后的影像文件夹路径
+
     try:
         shutil.rmtree(AUG_IMG_DIR)
     except FileNotFoundError as e:
         a = 1
     mkdir(AUG_IMG_DIR)
 
-    AUGLOOP = 3  # 每张影像增强的数量
+    AUGLOOP = 2  # 每张影像增强的数量
 
     boxes_img_aug_list = []
     new_bndbox = []
@@ -145,10 +171,10 @@ if __name__ == "__main__":
 
     # 影像增强
     seq = iaa.Sequential([
-        iaa.Flipud(0.5),  # vertically flip 20% of all images
-        iaa.Fliplr(0.5),  # 镜像
+        iaa.Flipud(0.5),                    # vertically flip 20% of all images
+        iaa.Fliplr(0.5),                    # 镜像
         iaa.Multiply((1.0, 1.1)),  # change brightness, doesn't affect BBs
-        # iaa.GaussianBlur(sigma=(0, 0.1)),  # iaa.GaussianBlur(0.5),
+        #iaa.GaussianBlur(sigma=(0, 0.1)),  # iaa.GaussianBlur(0.5),
         # iaa.Crop(percent=(0.0, 0.1)),
         iaa.Resize({"height": 900, "width": 1600}, interpolation='nearest'),
         # iaa.Affine(
@@ -157,16 +183,26 @@ if __name__ == "__main__":
         #     # rotate=(-30, 30)
         # )
         # iaa.Sharpen(alpha=0.5),
-        # iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)
+        #iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)
     ])
 
     for root, sub_folders, files in os.walk(XML_DIR):
 
         for name in files:
             print('name: ',name)
+
+            if name.endswith('.csv'):
+                continue
+
             bndbox = read_xml_annotation(XML_DIR, name)
+            if bndbox == None:
+                continue
             shutil.copy(os.path.join(XML_DIR, name), AUG_XML_DIR)
             shutil.copy(os.path.join(IMG_DIR, name[:-4] + '.jpg'), AUG_IMG_DIR)
+
+            if not Need_Augment(os.path.join(XML_DIR, name)): #判断是否需要增强
+                print(os.path.join(XML_DIR, name))
+                continue
 
             for epoch in range(AUGLOOP):
                 seq_det = seq.to_deterministic()  # 保持坐标和图像同步改变，而不是随机

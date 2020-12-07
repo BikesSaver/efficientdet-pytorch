@@ -4,21 +4,22 @@ from os import getcwd
 sets=[('2007', 'train'), ('2007', 'val'), ('2007', 'test')]
 
 wd = getcwd()
-# classes = ["Yellow", "Green", "Blue", "Cyan", "Orange", "Red", "Seat", "Other"]
-classes = ["Bike", "Seat"]
+classes = ["Yellow", "Green", "Blue", "Cyan", "Orange", "Red", "Seat", "Other"]
+#classes = ["Bike", "Seat"]
 
 def convert_annotation(year, image_id, list_file):
-    in_file = open('VOCdevkit/VOC%s/Annotations/%s.xml'%(year, image_id))
+    in_file = open('F:\project\efficientdet-pytorch-Bike\VOCdevkit\My_Dataset\Annotations\%s.xml'%(image_id))
+              #open('VOCdevkit/VOC%s/Annotations/%s.xml'%(year, image_id))
     tree=ET.parse(in_file)
     root = tree.getroot()
     if root.find('object')==None:
         return
-    list_file.write('%s/VOCdevkit/VOC%s/JPEGImages/%s.jpg'%(wd, year, image_id))
+    list_file.write('../efficientdet-pytorch-Bike\VOCdevkit\My_Dataset/JPEGImages/%s.jpg'%(image_id))
 
     for obj in root.iter('object'):
         cls = obj.find('name').text
         if cls not in classes:        # or int(difficult)==1:
-            cls = "Bike"
+            cls = "Yellow"  #防止undefined  cls = "Bike"  #
         cls_id = classes.index(cls)
         xmlbox = obj.find('bndbox')
         b = (int(xmlbox.find('xmin').text), int(xmlbox.find('ymin').text), int(xmlbox.find('xmax').text), int(xmlbox.find('ymax').text))

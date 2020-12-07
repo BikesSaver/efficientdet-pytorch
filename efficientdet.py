@@ -13,7 +13,7 @@ from torch.autograd import Variable
 from nets.efficientdet import EfficientDetBackbone
 from utils.utils import non_max_suppression, bbox_iou, decodebox, letterbox_image, efficientdet_correct_boxes
 
-Det = 0   # Efficient Det version
+Det = 2   # Efficient Det version
 
 
 
@@ -46,12 +46,11 @@ def precision(box, pred_num):
 #--------------------------------------------#
 class EfficientDet(object):
     _defaults = {
-        # "model_path": 'model_data/efficientdet-d0.pth',
-        'target_path':'2007_train.txt',
-        "classes_path": 'model_data/voc_classes.txt',
-        "phi": Det,
+        #"model_path": 'model_data/efficientdet-d0.pth',
+        # 'target_path': '2007_train_bike.txt',
+        # "classes_path": 'model_data/coco_classes.txt',
         "confidence": 0.2,
-        "cuda": True
+        "cuda": True,
     }
 
     @classmethod
@@ -64,11 +63,16 @@ class EfficientDet(object):
     #---------------------------------------------------#
     #   初始化Efficientdet
     #---------------------------------------------------#
-    def __init__(self, model_path, **kwargs):
+    def __init__(self, model_path, det, target, classes, **kwargs):
         self.__dict__.update(self._defaults)
+        self.nms_thres = 0.3
+        self.target_path = target
+        self.classes_path = classes
         self.model_path = model_path
+        self.phi = det
         self.class_names = self._get_class()
         self.generate()
+
 
 
     #---------------------------------------------------#
@@ -86,11 +90,17 @@ class EfficientDet(object):
     #---------------------------------------------------#
     def generate(self):
         os.environ["CUDA_VISIBLE_DEVICES"] = '0'
-        self.net = EfficientDetBackbone(len(self.class_names),self.phi).eval()
+        self.net = EfficientDetBackbone(len(self.class_names), self.phi).eval()
 
         # 加快模型训练的效率
         print('Loading weights into state dict...')
         state_dict = torch.load(self.model_path)
+
+        for name, weights in state_dict.items():
+            # print(name, weights.size())  可以查看模型中的模型名字和权重维度
+            if len(weights.size()) == 2:
+                state_dict[name] = weights.squeeze(0)
+
         self.net.load_state_dict(state_dict)
         self.net = nn.DataParallel(self.net)
         if self.cuda:
@@ -127,10 +137,10 @@ class EfficientDet(object):
             _, regression, classification, anchors = self.net(images)
             
             regression = decodebox(regression, anchors, images)
-            detection = torch.cat([regression,classification],axis=-1)
+            detection = torch.cat([regression, classification], axis=-1)
             batch_detections = non_max_suppression(detection, len(self.class_names),
                                                     conf_thres=self.confidence,
-                                                    nms_thres=0.2)
+                                                    nms_thres=self.nms_thres)  #default 0.3
         try:
             batch_detections = batch_detections[0].cpu().numpy()
         except:

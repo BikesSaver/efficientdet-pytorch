@@ -83,7 +83,7 @@ class FocalLoss(nn.Module):
     def __init__(self):
         super(FocalLoss, self).__init__()
 
-    def forward(self, classifications, regressions, anchors, annotations, alpha = 0.25, gamma = 2.0, cuda = True):
+    def forward(self, classifications, regressions, anchors, annotations, alpha=0.25, gamma=2.0, cuda=True):
         # 设置
         dtype = regressions.dtype
         batch_size = classifications.shape[0]
@@ -161,17 +161,18 @@ class FocalLoss(nn.Module):
             # smoooth_l1  & repulsion_loss
             if positive_indices.sum() > 0:
                 targets = encode_bbox(assigned_annotations, positive_indices, anchor_widths, anchor_heights, anchor_ctr_x, anchor_ctr_y)
-               
-                regression_diff = torch.abs(targets - regression[positive_indices, :])  #
+                # print("Targets:", targets)n * 4
+
+                regression_diff = torch.abs(targets - regression[positive_indices, :])  # -？
                 # smoooth_l1
-                L1delta = 0.5
+                L1delta = 1.0  #0.5
                 regression_loss = torch.where(
                     torch.le(regression_diff, L1delta),
                     0.5 * torch.pow(regression_diff, 2),
                     L1delta * regression_diff - 0.5 * L1delta ** 2
                 )
 
-                regression_losses.append(regression_loss.mean())
+                regression_losses.append(regression_loss.sum())
 
 
             else:
@@ -189,10 +190,8 @@ class FocalLoss(nn.Module):
         # rep_target = torch.tensor(rep_target, dtype=torch.float16)
         # rep_regres = torch.tensor(rep_regres, dtype=torch.float16)
         loss_RepGT = repulsion(rep_target, rep_regres)  # anchor
-
-        repu_loss = loss_RepGT.mean()
-
-        loss = c_loss + r_loss + repu_loss
+        repu_loss = loss_RepGT.mean()   # nan problem
+        loss = c_loss + r_loss #+ repu_loss
         return loss, c_loss, r_loss, repu_loss
 
 
