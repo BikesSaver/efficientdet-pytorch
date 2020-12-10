@@ -65,7 +65,7 @@ def change_xml_list_annotation(root, image_id, new_target, saveroot, id):
     in_file = open(os.path.join(root, str(image_id) + '.xml'))  # 这里root分别由两个意思
     tree = ET.parse(in_file)
     elem = tree.find('filename')
-    elem.text = (id + '.jpg')
+    elem.text = (id + '.JPG')
     xmlroot = tree.getroot()
     index = 0
 
@@ -163,7 +163,7 @@ if __name__ == "__main__":
         a = 1
     mkdir(AUG_IMG_DIR)
 
-    AUGLOOP = 5  # 每张影像增强的数量
+    AUGLOOP = 15  # 每张影像增强的数量
 
     boxes_img_aug_list = []
     new_bndbox = []
@@ -175,33 +175,19 @@ if __name__ == "__main__":
     seq = iaa.Sequential([
         iaa.Flipud(0.5),                    # vertically flip 20% of all images
         iaa.Fliplr(0.5),                    # 镜像
-        iaa.Multiply((1.0, 1.2)),  # change brightness, doesn't affect BBs
-        #iaa.GaussianBlur(sigma=(0, 0.1)),  # iaa.GaussianBlur(0.5),
-        # iaa.Crop(percent=(0.0, 0.1)),
-        iaa.Resize({"height": 900, "width": 1600}, interpolation='nearest'),
-        iaa.SomeOf((0, 5),
+        iaa.Crop(percent=(0.0, 0.1)),
+        iaa.SomeOf((1, 5),
                    [
-                       # 将部分图像进行超像素的表示。用超像素增强作者还是第一次见
-                       sometimes(
-                           iaa.Superpixels(
-                               p_replace=(0, 1.0),
-                               n_segments=(20, 200)
-                           )
-                       ),
-
                        # 用高斯模糊，均值模糊，中值模糊中的一种增强。注意OneOf的用法
                        iaa.OneOf([
                            iaa.GaussianBlur((0, 3.0)),
                            iaa.AverageBlur(k=(2, 7)),  # 核大小2~7之间，k=((5, 7), (1, 3))时，核高度5~7，宽度1~3
                            iaa.MedianBlur(k=(3, 11)),
                        ]),
-
                        # 锐化处理
-                       iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.5)),
-
+                       iaa.Sharpen(alpha=(0, 1.0), lightness=(1.0, 1.2)),
                        # 浮雕效果
-                       iaa.Emboss(alpha=(0, 1.0), strength=(0, 2.0)),
-
+                       iaa.Emboss(alpha=(0, 1.0), strength=(1, 2.0)),
                        # 边缘检测，将检测到的赋值0或者255然后叠在原图上
                        sometimes(iaa.OneOf([
                            iaa.EdgeDetect(alpha=(0, 0.7)),
@@ -211,38 +197,23 @@ if __name__ == "__main__":
                        ])),
 
                        # 加入高斯噪声
-                       iaa.AdditiveGaussianNoise(
-                           loc=0, scale=(0.0, 0.05 * 255), per_channel=0.5
-                       ),
-
+                       # iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.05 * 255) ),
                        # 将1%到10%的像素设置为黑色
                        # 或者将3%到15%的像素用原图大小2%到5%的黑色方块覆盖
-                       iaa.OneOf([
-                           iaa.Dropout((0.01, 0.1), per_channel=0.5),
-                           iaa.CoarseDropout(
-                               (0.03, 0.15), size_percent=(0.02, 0.05),
-                               per_channel=0.2
-                           ),
-                       ]),
-
+                       iaa.CoarseDropout((0.03, 0.05), size_percent=(0.01, 0.03)),
                        # 每个像素随机加减-10到10之间的数
-                       iaa.Add((-5, 5), per_channel=0.5),
-
-                       # 将整个图像的对比度变为原来的一半或者二倍
-                       iaa.ContrastNormalization((0.5, 2.0), per_channel=0.5),
+                       iaa.Add((-5, 5)),
 
                        # 把像素移动到周围的地方。这个方法在mnist数据集增强中有见到
-                       sometimes(
-                           iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)
-                       ),
-                       # 扭曲图像的局部区域
-                       sometimes(iaa.PiecewiseAffine(scale=(0.01, 0.05)))
+                       # iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)
+
                    ],
                    random_order=True  # 随机的顺序把这些操作用在图像上
-                   )
-    ],
-        random_order=True  # 随机的顺序把这些操作用在图像上
-    )
+                   ),
+
+        iaa.Multiply((1.0, 1.3)),
+        iaa.Resize({"height": 900, "width": 1600}, interpolation='nearest'),
+        ], )
 
     for root, sub_folders, files in os.walk(XML_DIR):
 
@@ -256,16 +227,16 @@ if __name__ == "__main__":
             if bndbox == None:
                 continue
             shutil.copy(os.path.join(XML_DIR, name), AUG_XML_DIR)
-            shutil.copy(os.path.join(IMG_DIR, name[:-4] + '.jpg'), AUG_IMG_DIR)
+            shutil.copy(os.path.join(IMG_DIR, name[:-4] + '.JPG'), AUG_IMG_DIR)
 
-            if not Need_Augment(os.path.join(XML_DIR, name)): #判断是否需要增强
-                print(os.path.join(XML_DIR, name))
-                continue
-
+            # if not Need_Augment(os.path.join(XML_DIR, name)): #判断是否需要增强
+            #     print(os.path.join(XML_DIR, name))
+            #     continue
+            # print("Here")
             for epoch in range(AUGLOOP):
                 seq_det = seq.to_deterministic()  # 保持坐标和图像同步改变，而不是随机
                 # 读取图片
-                img = Image.open(os.path.join(IMG_DIR, name[:-4] + '.jpg'))
+                img = Image.open(os.path.join(IMG_DIR, name[:-4] + '.JPG'))
                 # sp = img.size
                 img = np.asarray(img)
                 # bndbox 坐标增强
@@ -293,12 +264,12 @@ if __name__ == "__main__":
                 image_aug = seq_det.augment_images([img])[0]
 
                 path = os.path.join(AUG_IMG_DIR,
-                                    str("%06d" % (i+100*epoch) + name[:-4] ) + '.jpg')
+                                    str("%06d" % (i+100*epoch) + name[:-4] ) + '.JPG')
                 image_auged = bbs.draw_on_image(image_aug, thickness=0)
                 Image.fromarray(image_auged).save(path)
 
                 # 存储变化后的XML
                 change_xml_list_annotation(XML_DIR, name[:-4], new_bndbox_list, AUG_XML_DIR,
                                            str("%06d" % (i+100*epoch) + name[:-4] ) )
-                print(str("%06d"%(i+100*epoch) + name[:-4] ) + '.jpg')
+                print(str("%06d"%(i+100*epoch) + name[:-4] ) + '.JPG')
                 new_bndbox_list = []
