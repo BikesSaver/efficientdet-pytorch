@@ -163,7 +163,7 @@ if __name__ == "__main__":
         a = 1
     mkdir(AUG_IMG_DIR)
 
-    AUGLOOP = 15  # 每张影像增强的数量
+    AUGLOOP = 5  # 每张影像增强的数量
 
     boxes_img_aug_list = []
     new_bndbox = []
