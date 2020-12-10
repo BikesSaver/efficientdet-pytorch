@@ -163,28 +163,86 @@ if __name__ == "__main__":
         a = 1
     mkdir(AUG_IMG_DIR)
 
-    AUGLOOP = 2  # 每张影像增强的数量
+    AUGLOOP = 5  # 每张影像增强的数量
 
     boxes_img_aug_list = []
     new_bndbox = []
     new_bndbox_list = []
 
+    sometimes = lambda aug: iaa.Sometimes(0.5, aug)  # 建立lambda表达式
+
     # 影像增强
     seq = iaa.Sequential([
         iaa.Flipud(0.5),                    # vertically flip 20% of all images
         iaa.Fliplr(0.5),                    # 镜像
-        iaa.Multiply((1.0, 1.1)),  # change brightness, doesn't affect BBs
+        iaa.Multiply((1.0, 1.2)),  # change brightness, doesn't affect BBs
         #iaa.GaussianBlur(sigma=(0, 0.1)),  # iaa.GaussianBlur(0.5),
         # iaa.Crop(percent=(0.0, 0.1)),
         iaa.Resize({"height": 900, "width": 1600}, interpolation='nearest'),
-        # iaa.Affine(
-        #     translate_px={"x": 15, "y": 15},
-        #     scale=(0.5, 0.5),
-        #     # rotate=(-30, 30)
-        # )
-        # iaa.Sharpen(alpha=0.5),
-        #iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)
-    ])
+        iaa.SomeOf((0, 5),
+                   [
+                       # 将部分图像进行超像素的表示。用超像素增强作者还是第一次见
+                       sometimes(
+                           iaa.Superpixels(
+                               p_replace=(0, 1.0),
+                               n_segments=(20, 200)
+                           )
+                       ),
+
+                       # 用高斯模糊，均值模糊，中值模糊中的一种增强。注意OneOf的用法
+                       iaa.OneOf([
+                           iaa.GaussianBlur((0, 3.0)),
+                           iaa.AverageBlur(k=(2, 7)),  # 核大小2~7之间，k=((5, 7), (1, 3))时，核高度5~7，宽度1~3
+                           iaa.MedianBlur(k=(3, 11)),
+                       ]),
+
+                       # 锐化处理
+                       iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.5)),
+
+                       # 浮雕效果
+                       iaa.Emboss(alpha=(0, 1.0), strength=(0, 2.0)),
+
+                       # 边缘检测，将检测到的赋值0或者255然后叠在原图上
+                       sometimes(iaa.OneOf([
+                           iaa.EdgeDetect(alpha=(0, 0.7)),
+                           iaa.DirectedEdgeDetect(
+                               alpha=(0, 0.7), direction=(0.0, 1.0)
+                           ),
+                       ])),
+
+                       # 加入高斯噪声
+                       iaa.AdditiveGaussianNoise(
+                           loc=0, scale=(0.0, 0.05 * 255), per_channel=0.5
+                       ),
+
+                       # 将1%到10%的像素设置为黑色
+                       # 或者将3%到15%的像素用原图大小2%到5%的黑色方块覆盖
+                       iaa.OneOf([
+                           iaa.Dropout((0.01, 0.1), per_channel=0.5),
+                           iaa.CoarseDropout(
+                               (0.03, 0.15), size_percent=(0.02, 0.05),
+                               per_channel=0.2
+                           ),
+                       ]),
+
+                       # 每个像素随机加减-10到10之间的数
+                       iaa.Add((-5, 5), per_channel=0.5),
+
+                       # 将整个图像的对比度变为原来的一半或者二倍
+                       iaa.ContrastNormalization((0.5, 2.0), per_channel=0.5),
+
+                       # 把像素移动到周围的地方。这个方法在mnist数据集增强中有见到
+                       sometimes(
+                           iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)
+                       ),
+                       # 扭曲图像的局部区域
+                       sometimes(iaa.PiecewiseAffine(scale=(0.01, 0.05)))
+                   ],
+                   random_order=True  # 随机的顺序把这些操作用在图像上
+                   )
+    ],
+        random_order=True  # 随机的顺序把这些操作用在图像上
+    )
 
     for root, sub_folders, files in os.walk(XML_DIR):
 
