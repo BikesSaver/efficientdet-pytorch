@@ -163,7 +163,7 @@ if __name__ == "__main__":
         a = 1
     mkdir(AUG_IMG_DIR)
 
-    AUGLOOP = 5  # 每张影像增强的数量
+    AUGLOOP = 1  # 每张影像增强的数量
 
     boxes_img_aug_list = []
     new_bndbox = []
@@ -173,21 +173,21 @@ if __name__ == "__main__":
 
     # 影像增强
     seq = iaa.Sequential([
-        iaa.Flipud(0.5),                    # vertically flip 20% of all images
-        iaa.Fliplr(0.5),                    # 镜像
-        iaa.Crop(percent=(0.0, 0.1)),
-        iaa.SomeOf((1, 5),
+        iaa.Flipud(1),  # vertically flip 20% of all images
+        iaa.Fliplr(1),  # 镜像
+        # iaa.Crop(percent=(0.0, 0.1)),
+        iaa.SomeOf((1, 2),
                    [
                        # 用高斯模糊，均值模糊，中值模糊中的一种增强。注意OneOf的用法
                        iaa.OneOf([
-                           iaa.GaussianBlur((0, 3.0)),
-                           iaa.AverageBlur(k=(2, 7)),  # 核大小2~7之间，k=((5, 7), (1, 3))时，核高度5~7，宽度1~3
-                           iaa.MedianBlur(k=(3, 11)),
+                           iaa.GaussianBlur((0, 1.0)),
+                           # iaa.AverageBlur(k=(2, 7)),  # 核大小2~7之间，k=((5, 7), (1, 3))时，核高度5~7，宽度1~3
+                           # iaa.MedianBlur(k=(3, 11)),
                        ]),
                        # 锐化处理
-                       iaa.Sharpen(alpha=(0, 1.0), lightness=(1.0, 1.2)),
+                       iaa.Sharpen(alpha=(0, 1.0), lightness=(1.0, 1.0)),
                        # 浮雕效果
-                       iaa.Emboss(alpha=(0, 1.0), strength=(1, 2.0)),
+                       # iaa.Emboss(alpha=(0, 1.0), strength=(1, 1.3)),
                        # 边缘检测，将检测到的赋值0或者255然后叠在原图上
                        sometimes(iaa.OneOf([
                            iaa.EdgeDetect(alpha=(0, 0.7)),
@@ -196,13 +196,10 @@ if __name__ == "__main__":
                            ),
                        ])),
 
-                       # 加入高斯噪声
-                       # iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.05 * 255) ),
-                       # 将1%到10%的像素设置为黑色
                        # 或者将3%到15%的像素用原图大小2%到5%的黑色方块覆盖
-                       iaa.CoarseDropout((0.03, 0.05), size_percent=(0.01, 0.03)),
+                       iaa.CoarseDropout((0.03, 0.05), size_percent=(0.01, 0.02)),
                        # 每个像素随机加减-10到10之间的数
-                       iaa.Add((-5, 5)),
+                       # iaa.Add((-2, 2)),
 
                        # 把像素移动到周围的地方。这个方法在mnist数据集增强中有见到
                        # iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)
@@ -211,11 +208,11 @@ if __name__ == "__main__":
                    random_order=True  # 随机的顺序把这些操作用在图像上
                    ),
 
-        iaa.Multiply((1.0, 1.3)),
-        iaa.Resize({"height": 900, "width": 1600}, interpolation='nearest'),
-        ], )
+        # iaa.Resize({"height": 900, "width": 1600}, interpolation='nearest'),
+        iaa.Resize({"height": 450, "width": 800}, interpolation='nearest'),
+    ], )
 
-    for root, sub_folders, files in os.walk(XML_DIR):
+for root, sub_folders, files in os.walk(XML_DIR):
 
         for name in files:
             print('name: ',name)
